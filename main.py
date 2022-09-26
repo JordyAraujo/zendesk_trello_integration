@@ -28,7 +28,7 @@ def create_card(title, description, url):
         "name": title,
         "desc": f"{url}\n\n{description}",
         "pos": "top",
-        "idList": settings.LISTS_IDS[0],
+        "idList": settings.NEW_CARDS_LIST_ID,
         "key": settings.TRELLO_KEY,
         "token": settings.TRELLO_TOKEN,
     }
