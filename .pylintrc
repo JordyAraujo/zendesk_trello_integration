@@ -1,5 +1,12 @@
 [MESSAGES CONTROL]
 
-disable=import-error
+disable=import-error,
+    missing-module-docstring,
+    missing-function-docstring,
+    too-many-locals,
+    too-many-statements,
+    too-many-arguments,
+    duplicate-code,
+    invalid-name
 
 init-hook='import sys; sys.path.append(".venv")'
