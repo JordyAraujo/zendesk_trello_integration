@@ -1,5 +1,6 @@
 from ..config import settings
 
+
 def tag_by_priority(priority):
     match priority:
         case "Baixa":
@@ -13,6 +14,7 @@ def tag_by_priority(priority):
         case _:
             return None
 
+
 def tag_by_brand(brand):
     match brand:
         case "CDA Distribuidora":
@@ -22,14 +24,18 @@ def tag_by_brand(brand):
         case _:
             return None
 
+
 def tag_by_category(category):
     match category:
-        case "pdv_ti":
-            return settings.LABEL_ID_LIME_DARK
         case "bi":
             return settings.LABEL_ID_PINK_DARK
+        case "consinco":
+            return settings.LABEL_ID_PURPLE_DARK
+        case "pdv_ti":
+            return settings.LABEL_ID_LIME_DARK
         case _:
             return None
+
 
 def tag_by_department(department):
     match department:
@@ -40,52 +46,56 @@ def tag_by_department(department):
         case _:
             return None
 
+
 def department_title(department):
+    ret = None
     match department:
         case "administrativo":
-            return "Administrativo"
+            ret = "Administrativo"
         case "almoxarifado":
-            return "Almoxarifado"
+            ret = "Almoxarifado"
         case "caixa_pagador":
-            return "Caixa Pagador"
+            ret = "Caixa Pagador"
         case "comercial":
-            return "Comercial"
+            ret = "Comercial"
         case "contabilidade":
-            return "Contabilidade"
+            ret = "Contabilidade"
         case "controladoria":
-            return "Controladoria"
+            ret = "Controladoria"
         case "credito_e_cobrança":
-            return "Crédito e Cobrança"
+            ret = "Crédito e Cobrança"
         case "departamento_pessoal":
-            return "Departamento Pessoal"
+            ret = "Departamento Pessoal"
         case "diretoria":
-            return "Diretoria"
+            ret = "Diretoria"
         case "docelandia":
-            return "Docelândia"
+            ret = "Docelândia"
         case "faturamento":
-            return "Faturamento"
+            ret = "Faturamento"
         case "financeiro":
-            return "Financeiro"
+            ret = "Financeiro"
         case "logistica":
-            return "Logística"
+            ret = "Logística"
         case "portaria":
-            return "Portaria"
+            ret = "Portaria"
         case "recepção":
-            return "Recepção"
+            ret = "Recepção"
         case "recursos_humanos":
-            return "Recursos Humanos"
+            ret = "Recursos Humanos"
         case "suporte_de_vendas":
-            return "Suporte de Vendas"
+            ret = "Suporte de Vendas"
         case "televendas":
-            return "Televendas"
+            ret = "Televendas"
         case "tesouraria":
-            return "Tesouraria"
+            ret = "Tesouraria"
         case "ti":
-            return "TI"
+            ret = "TI"
         case "vendas_cda":
-            return "Vendas"
+            ret = "Vendas"
         case _:
-            return None
+            ret = None
+    return ret
+
 
 def list_by_status(status):
     match status:
@@ -99,3 +109,5 @@ def list_by_status(status):
             return "62ed2c846ab25f5f84a20ae9"
         case "Resolvido":
             return "62ed2ce97ac1e65ed9a9d114"
+        case _:
+            return None
