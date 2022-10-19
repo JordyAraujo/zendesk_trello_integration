@@ -4,9 +4,11 @@ the workflow between the platforms.
 """
 from flask import Flask, request
 from zenpy import Zenpy
+from zenpy.lib.api_objects import Ticket
 
 from ..TrelloApi.trelloapi import Trello
 from .config import settings
+from .utils.match_cases import status_by_list_id
 from .utils.trello import (
     handle_card_creation,
     handle_card_update,
@@ -33,54 +35,107 @@ initialize_webhook()
 @app.route("/new_ticket", methods=["POST"])
 def new_ticket():
     """A new Zendesk Ticket has been created"""
-    print("##### CARD CREATION #####")
     response = request.get_json()
     ticket_id, title, description, id_labels = handle_card_creation(response)
     ticket = zenpy_client.tickets(id=ticket_id)
     custom_fields = ticket.custom_fields
+    return_id = ticket_id
 
-    custom_field = list(
+    created_at_custom_field = list(
         filter(
             lambda field: field["id"]
-            == int(settings.TRELLO_CARD_CUSTOM_FIELD),
+            == int(settings.CREATED_AT_CUSTOM_FIELD),
             ticket.custom_fields,
         )
     )[0]
-    custom_field_index = custom_fields.index(custom_field)
 
-    card_id, response_status_code = card_list.create_card(
-        title, description, id_labels
-    )
+    if created_at_custom_field["value"] == "zendesk":
+        card_id_custom_field = list(
+            filter(
+                lambda field: field["id"]
+                == int(settings.TRELLO_CARD_ID_CUSTOM_FIELD),
+                ticket.custom_fields,
+            )
+        )[0]
+        card_id_custom_field_index = custom_fields.index(card_id_custom_field)
 
-    ticket.custom_fields[custom_field_index]["value"] = card_id
-    zenpy_client.tickets.update(ticket)
+        card_id, response_status_code = card_list.create_card(
+            title, description, id_labels
+        )
 
-    print(
-        f"Novo Ticket criado no Zendesk!\n"
-        f"- id: {card_id}\n- Título: {title}\n"
-        f"- Código HTTP: {response_status_code}"
-    )
+        return_id = card_id
 
-    return card_id, response_status_code
+        ticket.custom_fields[card_id_custom_field_index]["value"] = card_id
+        zenpy_client.tickets.update(ticket)
+
+        print(
+            f"Cartão criado baseado em ticket novo no Zendesk!\n"
+            f"- id: {card_id}\n- Título: {title}\n"
+            f"- Código HTTP: {response_status_code}"
+        )
+    else:
+        created_at_custom_field_index = custom_fields.index(
+            created_at_custom_field
+        )
+        ticket.custom_fields[created_at_custom_field_index]["value"] = "trello"
+        zenpy_client.tickets.update(ticket)
+        response_status_code = 200
+
+    return return_id, response_status_code
 
 
 @app.route("/update_ticket", methods=["POST"])
 def update_ticket():
     """A Zendesk Ticket has been updated"""
-    print("##### CARD UPDATE #####")
     response = request.get_json()
     ticket_id = response.get("id", None)
     ticket = zenpy_client.tickets(id=ticket_id)
     ticket_id = handle_card_update(response, ticket)
 
-    print(f"Ticket atualizado no Zendesk!\n- ID do Ticket: {ticket_id}")
+    print(f"Cartão editado baseado em ticket atualizado no Zendesk!\n- ID do Ticket: {ticket_id}")
     return ticket_id, 200
 
 
 @app.route("/board_webhook", methods=["POST"])
 def board_webhook():
     """An update has been made on the board"""
-    print("##### BOARD WEBHOOK TEST #####")
+
     response = request.get_json()
-    print(response)
-    return response["model"]["id"], 200
+    # Se o título do cartão não começa com #, significa que foi
+    # criado diretamente no Trello, então deve ser criado no zendesk
+    if not response["action"]["data"]["card"]["name"][0] == "#":
+        if "type" in response["action"].keys():
+            action_type = response["action"]["type"]
+        else:
+            action_type = None
+
+        if action_type and action_type == "createCard":
+            card_id = response["action"]["data"]["card"]["id"]
+            custom_fields = [
+                {
+                    "id": settings.TRELLO_CARD_ID_CUSTOM_FIELD,
+                    "value": card_id
+                },
+                {
+                    "id": settings.TI_AGENT_CUSTOM_FIELD,
+                    "value": "jordy" # response["action"]["memberCreator"]["fullName"]
+                },
+                {
+                    "id": settings.CREATED_AT_CUSTOM_FIELD,
+                    "value": "trello"
+                }
+            ]
+
+            subject = response["action"]["data"]["card"]["name"]
+
+            list_id = response["action"]["data"]["list"]["id"]
+            status = status_by_list_id(list_id)
+
+            ticket = Ticket(
+                subject=subject,
+                description="Criado pelo Trello",
+                status=status,
+                custom_fields=custom_fields
+            )
+            zenpy_client.tickets.create(ticket)
+    return response, 200
