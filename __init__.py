@@ -10,6 +10,7 @@ from ..TrelloApi.trelloapi import Trello
 from .config import settings
 from .utils.match_cases import status_by_list_id
 from .utils.trello import (
+    filter_custom_field,
     handle_card_creation,
     handle_card_update,
     initialize_webhook,
@@ -41,22 +42,15 @@ def new_ticket():
     custom_fields = ticket.custom_fields
     return_id = ticket_id
 
-    created_at_custom_field = list(
-        filter(
-            lambda field: field["id"]
-            == int(settings.CREATED_AT_CUSTOM_FIELD),
-            ticket.custom_fields,
-        )
-    )[0]
+    created_at_custom_field = filter_custom_field(
+        ticket, settings.CREATED_AT_CUSTOM_FIELD
+    )
 
     if created_at_custom_field["value"] == "zendesk":
-        card_id_custom_field = list(
-            filter(
-                lambda field: field["id"]
-                == int(settings.TRELLO_CARD_ID_CUSTOM_FIELD),
-                ticket.custom_fields,
-            )
-        )[0]
+        card_id_custom_field = filter_custom_field(
+            ticket, settings.TRELLO_CARD_ID_CUSTOM_FIELD
+        )
+
         card_id_custom_field_index = custom_fields.index(card_id_custom_field)
 
         card_id, response_status_code = card_list.create_card(
@@ -92,7 +86,10 @@ def update_ticket():
     ticket = zenpy_client.tickets(id=ticket_id)
     ticket_id = handle_card_update(response, ticket)
 
-    print(f"Cartão editado baseado em ticket atualizado no Zendesk!\n- ID do Ticket: {ticket_id}")
+    print(
+        "Cartão editado baseado em ticket atualizado no Zendesk!\n"
+        f"- ID do Ticket: {ticket_id}"
+    )
     return ticket_id, 200
 
 
@@ -112,18 +109,13 @@ def board_webhook():
         if action_type and action_type == "createCard":
             card_id = response["action"]["data"]["card"]["id"]
             custom_fields = [
-                {
-                    "id": settings.TRELLO_CARD_ID_CUSTOM_FIELD,
-                    "value": card_id
-                },
+                {"id": settings.TRELLO_CARD_ID_CUSTOM_FIELD, "value": card_id},
                 {
                     "id": settings.TI_AGENT_CUSTOM_FIELD,
-                    "value": "jordy" # response["action"]["memberCreator"]["fullName"]
+                    "value": "jordy"
+                    # response["action"]["memberCreator"]["fullName"]
                 },
-                {
-                    "id": settings.CREATED_AT_CUSTOM_FIELD,
-                    "value": "trello"
-                }
+                {"id": settings.CREATED_AT_CUSTOM_FIELD, "value": "trello"},
             ]
 
             subject = response["action"]["data"]["card"]["name"]
@@ -135,7 +127,7 @@ def board_webhook():
                 subject=subject,
                 description="Criado pelo Trello",
                 status=status,
-                custom_fields=custom_fields
+                custom_fields=custom_fields,
             )
             zenpy_client.tickets.create(ticket)
     return response, 200

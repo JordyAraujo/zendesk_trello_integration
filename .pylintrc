@@ -5,8 +5,6 @@ disable=import-error,
     missing-function-docstring,
     too-many-locals,
     too-many-statements,
-    too-many-arguments,
-    duplicate-code,
-    invalid-name
+    too-many-arguments
 
 init-hook='import sys; sys.path.append(".venv")'

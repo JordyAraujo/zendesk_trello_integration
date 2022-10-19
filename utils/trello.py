@@ -57,16 +57,12 @@ def handle_card_update(response, ticket):
 
     custom_fields = ticket.custom_fields
 
-    custom_field = list(
-        filter(
-            lambda field: field["id"]
-            == int(settings.TRELLO_CARD_ID_CUSTOM_FIELD),
-            ticket.custom_fields,
-        )
-    )[0]
-    custom_field_index = custom_fields.index(custom_field)
+    card_id_custom_field = filter_custom_field(
+        ticket, settings.TRELLO_CARD_ID_CUSTOM_FIELD
+    )
+    card_id_custom_field_index = custom_fields.index(card_id_custom_field)
 
-    card_id = ticket.custom_fields[custom_field_index]["value"]
+    card_id = ticket.custom_fields[card_id_custom_field_index]["value"]
 
     ticket_id = response.get("id", "-")
 
@@ -260,3 +256,12 @@ def initialize_webhook():
             )
         except httpx.HTTPStatusError as exc:
             print(exc)
+
+
+def filter_custom_field(ticket, custom_field):
+    return list(
+        filter(
+            lambda field: field["id"] == int(custom_field),
+            ticket.custom_fields,
+        )
+    )[0]
