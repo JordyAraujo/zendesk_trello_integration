@@ -60,7 +60,7 @@ def handle_card_update(response, ticket):
     custom_field = list(
         filter(
             lambda field: field["id"]
-            == int(settings.TRELLO_CARD_CUSTOM_FIELD),
+            == int(settings.TRELLO_CARD_ID_CUSTOM_FIELD),
             ticket.custom_fields,
         )
     )[0]
@@ -198,7 +198,7 @@ def create_description(
     )
 
     return (
-        f"{url}\n\n{ticket_type}{insert_by}{collaborator}do setor "
+        f"{url}\n\n{ticket_type}{insert_by}{collaborator} do setor "
         f"{department}, em {subdescription[date_beginning:date_end]}\n\n"
         f"---\n\n{subdescription[date_end+2:]}\n\nTags: "
         f"{tags}"

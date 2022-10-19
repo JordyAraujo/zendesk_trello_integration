@@ -111,3 +111,19 @@ def list_by_status(status):
             return "62ed2ce97ac1e65ed9a9d114"
         case _:
             return None
+
+
+def status_by_list_id(list_id):
+    match list_id:
+        case "62c991d6b4fec53835cd8d62":
+            return "Novo"
+        case "62c991d6b4fec53835cd8d62":
+            return "Aberto"
+        case "62ed2c7f187ade7138779186":
+            return "Pendente"
+        case "62ed2c846ab25f5f84a20ae9":
+            return "Em espera"
+        case "62ed2ce97ac1e65ed9a9d114":
+            return "Resolvido"
+        case _:
+            return None
