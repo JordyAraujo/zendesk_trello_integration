@@ -103,13 +103,11 @@ def board_webhook():
     """An update has been made on the board"""
 
     response = request.get_json()
-    # Se o título do cartão não começa com #, significa que foi
-    # criado diretamente no Trello, então deve ser criado no zendesk
-    if not response["action"]["data"]["card"]["name"][0] == "#":
-        if "type" in response["action"].keys():
-            action_type = response["action"]["type"]
-        else:
-            action_type = None
+
+    if "type" in response["action"].keys():
+        action_type = response["action"]["type"]
+    else:
+        action_type = None
 
     if action_type and action_type == "createCard":
         # Se o título do cartão não começa com #, significa que foi
