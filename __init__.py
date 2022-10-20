@@ -3,6 +3,7 @@ Integration between Zendesk and Trello. The main purpose here is to automatize
 the workflow between the platforms.
 """
 from flask import Flask, request
+from flask_loguru import Logger
 from zenpy import Zenpy
 from zenpy.lib.api_objects import Ticket
 
@@ -17,6 +18,10 @@ from .utils.trello import (
 )
 
 app = Flask(__name__)
+
+logger = Logger()
+
+logger.init_app(app, {"LOG_PATH": ".", "LOG_NAME": "run.log"})
 
 trello = Trello(settings.TRELLO_KEY, settings.TRELLO_TOKEN)
 
@@ -62,7 +67,7 @@ def new_ticket():
         ticket.custom_fields[card_id_custom_field_index]["value"] = card_id
         zenpy_client.tickets.update(ticket)
 
-        print(
+        logger.info(
             f"Cartão criado baseado em ticket novo no Zendesk!\n"
             f"- id: {card_id}\n- Título: {title}\n"
             f"- Código HTTP: {response_status_code}"
@@ -86,7 +91,7 @@ def update_ticket():
     ticket = zenpy_client.tickets(id=ticket_id)
     ticket_id = handle_card_update(response, ticket)
 
-    print(
+    logger.info(
         "Cartão editado baseado em ticket atualizado no Zendesk!\n"
         f"- ID do Ticket: {ticket_id}"
     )
@@ -106,15 +111,14 @@ def board_webhook():
         else:
             action_type = None
 
-        if action_type and action_type == "createCard":
+    if action_type and action_type == "createCard":
+        # Se o título do cartão não começa com #, significa que foi
+        # criado diretamente no Trello, então deve ser criado no zendesk
+        if not response["action"]["data"]["card"]["name"][0] == "#":
             card_id = response["action"]["data"]["card"]["id"]
             custom_fields = [
                 {"id": settings.TRELLO_CARD_ID_CUSTOM_FIELD, "value": card_id},
-                {
-                    "id": settings.TI_AGENT_CUSTOM_FIELD,
-                    "value": "jordy"
-                    # response["action"]["memberCreator"]["fullName"]
-                },
+                {"id": settings.TI_AGENT_CUSTOM_FIELD, "value": "jordy"},
                 {"id": settings.CREATED_AT_CUSTOM_FIELD, "value": "trello"},
             ]
 
@@ -129,5 +133,6 @@ def board_webhook():
                 status=status,
                 custom_fields=custom_fields,
             )
+
             zenpy_client.tickets.create(ticket)
     return response, 200

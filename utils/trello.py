@@ -1,4 +1,5 @@
 import httpx
+from flask_loguru import logger
 
 from ..config import settings
 from .match_cases import (
@@ -86,7 +87,7 @@ def handle_card_update(response, ticket):
         comments = rsp.json()
     except httpx.HTTPStatusError as exc:
         comments = None
-        print(exc)
+        logger.error(exc)
 
     if not comments:
         last_trello_comment = None
@@ -109,7 +110,7 @@ def handle_card_update(response, ticket):
             )
             rsp.raise_for_status()
         except httpx.HTTPStatusError as exc:
-            print(exc)
+            logger.error(exc)
 
     priority = response.get("priority", "Ticket sem prioridade")
     priority_tag = tag_by_priority(priority)
@@ -165,7 +166,7 @@ def handle_card_update(response, ticket):
             "data": update_data,
         }
     except httpx.HTTPStatusError as exc:
-        print(
+        logger.info(
             f"status: {exc.response.status_code},"
             f"url: {update_url},"
             f"data: {exc}"
@@ -224,7 +225,7 @@ def webhook_exists_for_board():
         webhooks = rsp.json()
     except httpx.HTTPStatusError as exc:
         webhooks = None
-        print(exc)
+        logger.error(exc)
 
     if webhooks:
         for webhook in webhooks:
@@ -250,7 +251,7 @@ def initialize_webhook():
                 create_webhook_url, headers=headers, params={**param}
             )
             rsp.raise_for_status()
-            print(
+            logger.info(
                 f"Webhook do Trello criado sucesso!!\n"
                 f"- ID do Webhook: {rsp.json()['id']}"
             )
