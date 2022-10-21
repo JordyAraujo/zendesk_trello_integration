@@ -67,50 +67,11 @@ def handle_card_update(response, ticket):
 
     ticket_id = response.get("id", "-")
 
+    subject = response.get("title", "Ticket do Zendesk")
+    title = "#" + ticket_id + " - " + subject
+
     status = response.get("status", "Aberto")
     id_list = list_by_status(status)
-
-    last_zendesk_comment = response.get("last_comment", "Aberto")
-    comments_url = f"https://api.trello.com/1/cards/{card_id}/actions"
-
-    agent = response.get("agent", "Agente")
-
-    try:
-        headers = {"Accept": "application/json"}
-        param = {
-            "key": settings.TRELLO_KEY,
-            "token": settings.TRELLO_TOKEN,
-            "filter": "commentCard",
-        }
-        rsp = httpx.get(comments_url, headers=headers, params={**param})
-        rsp.raise_for_status()
-        comments = rsp.json()
-    except httpx.HTTPStatusError as exc:
-        comments = None
-        logger.error(exc)
-
-    if not comments:
-        last_trello_comment = None
-    else:
-        last_trello_comment = comments[0]["data"]["text"]
-
-    if f"{last_zendesk_comment} - __{agent}__" != last_trello_comment:
-        create_comment_url = (
-            f"https://api.trello.com/1/cards/{card_id}/actions/comments"
-        )
-        try:
-            headers = {"Accept": "application/json"}
-            param = {
-                "key": settings.TRELLO_KEY,
-                "token": settings.TRELLO_TOKEN,
-                "text": f"{last_zendesk_comment} - __{agent}__",
-            }
-            rsp = httpx.post(
-                create_comment_url, headers=headers, params={**param}
-            )
-            rsp.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            logger.error(exc)
 
     priority = response.get("priority", "Ticket sem prioridade")
     priority_tag = tag_by_priority(priority)
@@ -138,11 +99,54 @@ def handle_card_update(response, ticket):
 
     tags = response.get("tags", "ti").replace(" ", ", ")
 
+    collaborator = response.get("user", "Usuário")
+
     description = create_description(
-        url, subdescription, ticket_type, agent, department, tags
+        url, subdescription, ticket_type, collaborator, department, tags
     )
 
     category = response.get("status", "status")
+
+    last_zendesk_comment = response.get("last_comment", "Aberto").split('\n')[-1]
+    comments_url = f"https://api.trello.com/1/cards/{card_id}/actions"
+
+    agent = response.get("agent", "Agente")
+    try:
+        headers = {"Accept": "application/json"}
+        param = {
+            "key": settings.TRELLO_KEY,
+            "token": settings.TRELLO_TOKEN,
+            "filter": "commentCard",
+        }
+        rsp = httpx.get(comments_url, headers=headers, params={**param})
+        rsp.raise_for_status()
+        comments = rsp.json()
+    except httpx.HTTPStatusError as exc:
+        comments = None
+        logger.error(exc)
+
+    if not comments:
+        last_trello_comment = description
+    else:
+        last_trello_comment = comments[0]["data"]["text"]
+
+    if f"{last_zendesk_comment} - __{agent}__" != last_trello_comment and last_zendesk_comment != last_trello_comment:
+        create_comment_url = (
+            f"https://api.trello.com/1/cards/{card_id}/actions/comments"
+        )
+        try:
+            headers = {"Accept": "application/json"}
+            param = {
+                "key": settings.TRELLO_KEY,
+                "token": settings.TRELLO_TOKEN,
+                "text": f"{last_zendesk_comment} - __{agent}__",
+            }
+            rsp = httpx.post(
+                create_comment_url, headers=headers, params={**param}
+            )
+            rsp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            logger.error(exc)
 
     update_url = f"https://api.trello.com/1/cards/{card_id}"
     id_labels_str = ",".join(id_labels)
@@ -152,6 +156,7 @@ def handle_card_update(response, ticket):
         param = {
             "key": settings.TRELLO_KEY,
             "token": settings.TRELLO_TOKEN,
+            "name": title,
             "desc": description,
             "pos": "top",
             "idLabels": id_labels_str,
@@ -166,7 +171,7 @@ def handle_card_update(response, ticket):
             "data": update_data,
         }
     except httpx.HTTPStatusError as exc:
-        logger.info(
+        logger.error(
             f"status: {exc.response.status_code},"
             f"url: {update_url},"
             f"data: {exc}"
@@ -256,7 +261,7 @@ def initialize_webhook():
                 f"- ID do Webhook: {rsp.json()['id']}"
             )
         except httpx.HTTPStatusError as exc:
-            print(exc)
+            logger.error(exc)
 
 
 def filter_custom_field(ticket, custom_field):

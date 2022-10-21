@@ -3,25 +3,25 @@ Integration between Zendesk and Trello. The main purpose here is to automatize
 the workflow between the platforms.
 """
 from flask import Flask, request
-from flask_loguru import Logger
+from flask_loguru import Logger, logger
 from zenpy import Zenpy
-from zenpy.lib.api_objects import Ticket
+from zenpy.lib.api_objects import Ticket, Comment
 
 from ..TrelloApi.trelloapi import Trello
 from .config import settings
-from .utils.match_cases import status_by_list_id
+from .utils.match_cases import status_by_list_id, priority_by_tag_id
 from .utils.trello import (
     filter_custom_field,
     handle_card_creation,
     handle_card_update,
-    initialize_webhook,
+    initialize_webhook
 )
 
 app = Flask(__name__)
 
-logger = Logger()
+app_logger = Logger()
 
-logger.init_app(app, {"LOG_PATH": ".", "LOG_NAME": "run.log"})
+app_logger.init_app(app, {"LOG_PATH": ".", "LOG_NAME": "loguru_logger.json"})
 
 trello = Trello(settings.TRELLO_KEY, settings.TRELLO_TOKEN)
 
@@ -51,10 +51,11 @@ def new_ticket():
         ticket, settings.CREATED_AT_CUSTOM_FIELD
     )
 
+    card_id_custom_field = filter_custom_field(
+        ticket, settings.TRELLO_CARD_ID_CUSTOM_FIELD
+    )
+
     if created_at_custom_field["value"] == "zendesk":
-        card_id_custom_field = filter_custom_field(
-            ticket, settings.TRELLO_CARD_ID_CUSTOM_FIELD
-        )
 
         card_id_custom_field_index = custom_fields.index(card_id_custom_field)
 
@@ -109,6 +110,8 @@ def board_webhook():
     else:
         action_type = None
 
+
+    # When a card is created
     if action_type and action_type == "createCard":
         # Se o título do cartão não começa com #, significa que foi
         # criado diretamente no Trello, então deve ser criado no zendesk
@@ -133,4 +136,49 @@ def board_webhook():
             )
 
             zenpy_client.tickets.create(ticket)
+    else:
+        card_name = response["action"]["data"]["card"]["name"]
+        ticket_id = card_name.split('#')[1].split(' - ')[0]
+        ticket = zenpy_client.tickets(id=ticket_id)
+        # When a comment is added
+        if action_type and action_type == "commentCard":
+            new_comment = response["action"]["data"]["text"]
+            if not bool(new_comment.split('\n')[0] == '----------------------------------------------'):
+                comments = []
+                for comment in zenpy_client.tickets.comments(ticket=ticket_id):
+                    comments.append(comment)
+                if not ' - __' in new_comment:
+                    ticket.comment = Comment(body=new_comment, public=True)
+                    zenpy_client.tickets.update(ticket)
+        # When a card is updated
+        elif action_type and action_type == "updateCard":
+            # When a tag is added or removed
+            if "idLabels" in response["action"]["data"]["old"]:
+                old_labels_list = response["action"]["data"]["old"]["idLabels"]
+                new_labels_list = response["action"]["data"]["card"]["idLabels"]
+                removed_label_id = set(old_labels_list).difference(set(new_labels_list))
+                for label in removed_label_id:
+                    removed_label_id = label
+                added_label_id = set(new_labels_list).difference(set(old_labels_list))
+                for label in added_label_id:
+                    added_label_id = label
+                # When a tag is added
+                if added_label_id:
+                    # If the added label is priority related
+                    if added_label_id in (
+                        settings.LABEL_ID_GREEN_DARK,
+                        settings.LABEL_ID_YELLOW_DARK,
+                        settings.LABEL_ID_ORANGE_DARK,
+                        settings.LABEL_ID_RED_DARK
+                    ):
+                        priority_custom_field = filter_custom_field(
+                            ticket, settings.PRIORITY_CUSTOM_FIELD
+                        )
+                        custom_fields = ticket.custom_fields
+                        priority_custom_field_index = custom_fields.index(priority_custom_field)
+                        priority = priority_by_tag_id(added_label_id)
+
+                        ticket.custom_fields[priority_custom_field_index]["value"] = priority
+                        zenpy_client.tickets.update(ticket)
+
     return response, 200
