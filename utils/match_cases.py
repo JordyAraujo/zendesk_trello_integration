@@ -15,6 +15,20 @@ def tag_by_priority(priority):
             return None
 
 
+def priority_by_tag_id(tag_id):
+    match tag_id:
+        case settings.LABEL_ID_GREEN_DARK:
+            return "low"
+        case settings.LABEL_ID_YELLOW_DARK:
+            return "normal"
+        case settings.LABEL_ID_ORANGE_DARK:
+            return "high"
+        case settings.LABEL_ID_RED_DARK:
+            return "urgent"
+        case _:
+            return None
+
+
 def tag_by_brand(brand):
     match brand:
         case "CDA Distribuidora":
@@ -116,14 +130,14 @@ def list_by_status(status):
 def status_by_list_id(list_id):
     match list_id:
         case "62c991d6b4fec53835cd8d62":
-            return "Novo"
+            return "new"
         case "62c991d6b4fec53835cd8d62":
-            return "Aberto"
+            return "open"
         case "62ed2c7f187ade7138779186":
-            return "Pendente"
+            return "pending"
         case "62ed2c846ab25f5f84a20ae9":
-            return "Em espera"
+            return "hold"
         case "62ed2ce97ac1e65ed9a9d114":
-            return "Resolvido"
+            return "solved"
         case _:
             return None
