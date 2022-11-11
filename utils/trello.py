@@ -1,4 +1,5 @@
 import httpx
+import json
 from flask_loguru import logger
 
 from ..config import settings
@@ -15,9 +16,7 @@ from .match_cases import (
 def handle_card_creation(response):
     id_labels = []
 
-    ticket_id = response.get("id", None)
-
-    priority = response.get("priority", "Ticket sem prioridade")
+    priority = response.get("priority", "Normal")
     priority_tag = tag_by_priority(priority)
     if priority_tag:
         id_labels.append(priority_tag)
@@ -37,6 +36,8 @@ def handle_card_creation(response):
     if department_tag:
         id_labels.append(department_tag)
 
+    id_labels.append(settings.LABEL_ID_PINK_DARK)
+
     url = response.get("url", "cdanatal.zendesk.com/agent/dashboard")
     subdescription = response.get("description", "Ticket sem descrição")
     ticket_type = response.get("ticket_type", "Tarefa")
@@ -47,14 +48,23 @@ def handle_card_creation(response):
         url, subdescription, ticket_type, collaborator, department, tags
     )
 
+    ticket_id = response.get("id", None)
     subject = response.get("title", "Ticket do Zendesk")
     title = "#" + ticket_id + " - " + subject
 
-    return ticket_id, title, description, id_labels
+    return title, description, id_labels
 
 
 def handle_card_update(response, ticket):
     id_labels = []
+
+    raw_tags = response.get("tags", "ti")
+
+    list_tags = raw_tags.split(" ")
+    if "zendesk" in list_tags:
+        id_labels.append(settings.LABEL_ID_PINK_DARK)
+    elif "trello" in list_tags:
+        id_labels.append(settings.LABEL_ID_LIME_DARK)
 
     custom_fields = ticket.custom_fields
 
@@ -62,13 +72,12 @@ def handle_card_update(response, ticket):
         ticket, settings.TRELLO_CARD_ID_CUSTOM_FIELD
     )
     card_id_custom_field_index = custom_fields.index(card_id_custom_field)
-
-    card_id = ticket.custom_fields[card_id_custom_field_index]["value"]
+    card_id = response.get("card_id", ticket.custom_fields[card_id_custom_field_index]["value"])
 
     ticket_id = response.get("id", "-")
 
     subject = response.get("title", "Ticket do Zendesk")
-    title = "#" + ticket_id + " - " + subject
+    title = "#" + str(ticket_id) + " - " + subject
 
     status = response.get("status", "Aberto")
     id_list = list_by_status(status)
@@ -97,17 +106,24 @@ def handle_card_update(response, ticket):
     subdescription = response.get("description", "Ticket sem descrição")
     ticket_type = response.get("ticket_type", "Tarefa")
 
-    tags = response.get("tags", "ti").replace(" ", ", ")
 
     collaborator = response.get("user", "Usuário")
 
     description = create_description(
-        url, subdescription, ticket_type, collaborator, department, tags
+        url,
+        subdescription,
+        ticket_type,
+        collaborator,
+        department,
+        raw_tags.replace(" ", ", ")
     )
 
     category = response.get("status", "status")
 
-    last_zendesk_comment = response.get("last_comment", "Aberto").split('\n')[-1]
+    last_zendesk_comment = response.get("last_comment", "Aberto").split("\n")[
+        -1
+    ]
+
     comments_url = f"https://api.trello.com/1/cards/{card_id}/actions"
 
     agent = response.get("agent", "Agente")
@@ -130,7 +146,10 @@ def handle_card_update(response, ticket):
     else:
         last_trello_comment = comments[0]["data"]["text"]
 
-    if f"{last_zendesk_comment} - __{agent}__" != last_trello_comment and last_zendesk_comment != last_trello_comment:
+    if (
+        f"{last_zendesk_comment} - __{agent}__" != last_trello_comment
+        and last_zendesk_comment != last_trello_comment
+    ):
         create_comment_url = (
             f"https://api.trello.com/1/cards/{card_id}/actions/comments"
         )
@@ -152,17 +171,15 @@ def handle_card_update(response, ticket):
     id_labels_str = ",".join(id_labels)
 
     try:
-        headers = {"Accept": "application/json"}
-        param = {
-            "key": settings.TRELLO_KEY,
-            "token": settings.TRELLO_TOKEN,
+        param = {"key": settings.TRELLO_KEY, "token": settings.TRELLO_TOKEN}
+        data = {
             "name": title,
             "desc": description,
             "pos": "top",
             "idLabels": id_labels_str,
-            "idList": id_list,
+            "idList": id_list
         }
-        rsp = httpx.put(update_url, headers=headers, params={**param})
+        rsp = httpx.put(update_url, params=param, json=data)
         rsp.raise_for_status()
         update_data = rsp.json()
         response = {
@@ -198,13 +215,21 @@ def create_description(
         if ticket_type in ("Incidente", "Problema")
         else " criada por "
     )
+    if subdescription == "Trello":
+        description = (
+            f"{url}\n\n{ticket_type}{insert_by}{collaborator} do setor "
+            f"{department}, em {subdescription}\n\nTags: "
+            f"{tags}"
+        )
+    else:
+        description = (
+            f"{url}\n\n{ticket_type}{insert_by}{collaborator} do setor "
+            f"{department}, em {subdescription[date_beginning:date_end]}\n\n"
+            f"---\n\n{subdescription[date_end:]}\n\nTags: "
+            f"{tags}"
+        )
 
-    return (
-        f"{url}\n\n{ticket_type}{insert_by}{collaborator} do setor "
-        f"{department}, em {subdescription[date_beginning:date_end]}\n\n"
-        f"---\n\n{subdescription[date_end+2:]}\n\nTags: "
-        f"{tags}"
-    )
+    return description
 
 
 def find_nth_substring(string, substring, occurrence):
@@ -217,51 +242,6 @@ def find_nth_substring(string, substring, occurrence):
             find_nth_substring(string, substring, occurrence - 1) + 1,
         )
     return index
-
-
-def webhook_exists_for_board():
-    exists = False
-    url = f"https://api.trello.com/1/tokens/{settings.TRELLO_TOKEN}/webhooks"
-    try:
-        headers = {"Accept": "application/json"}
-        param = {"key": settings.TRELLO_KEY, "token": settings.TRELLO_TOKEN}
-        rsp = httpx.get(url, headers=headers, params={**param})
-        rsp.raise_for_status()
-        webhooks = rsp.json()
-    except httpx.HTTPStatusError as exc:
-        webhooks = None
-        logger.error(exc)
-
-    if webhooks:
-        for webhook in webhooks:
-            if webhook["idModel"] == settings.BOARD_ID:
-                exists = True
-                break
-
-    return exists
-
-
-def initialize_webhook():
-    if not webhook_exists_for_board():
-        create_webhook_url = "https://api.trello.com/1/webhooks"
-        try:
-            headers = {"Accept": "application/json"}
-            param = {
-                "callbackURL": f"{settings.BASE_URL}/board_webhook",
-                "idModel": settings.BOARD_ID,
-                "key": settings.TRELLO_KEY,
-                "token": settings.TRELLO_TOKEN,
-            }
-            rsp = httpx.post(
-                create_webhook_url, headers=headers, params={**param}
-            )
-            rsp.raise_for_status()
-            logger.info(
-                f"Webhook do Trello criado sucesso!!\n"
-                f"- ID do Webhook: {rsp.json()['id']}"
-            )
-        except httpx.HTTPStatusError as exc:
-            logger.error(exc)
 
 
 def filter_custom_field(ticket, custom_field):

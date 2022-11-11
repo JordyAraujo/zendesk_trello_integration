@@ -114,30 +114,30 @@ def department_title(department):
 def list_by_status(status):
     match status:
         case "Novo":
-            return "62c991d6b4fec53835cd8d62"
+            return settings.NEW_CARDS_LIST_ID
         case "Aberto":
-            return "62c991d6b4fec53835cd8d62"
+            return settings.NEW_CARDS_LIST_ID
         case "Pendente":
-            return "62ed2c7f187ade7138779186"
+            return settings.PENDING_LIST_ID
         case "Em espera":
-            return "62ed2c846ab25f5f84a20ae9"
+            return settings.HOLD_LIST_ID
         case "Resolvido":
-            return "62ed2ce97ac1e65ed9a9d114"
+            return settings.SOLVED_LIST_ID
         case _:
             return None
 
 
 def status_by_list_id(list_id):
     match list_id:
-        case "62c991d6b4fec53835cd8d62":
+        case settings.NEW_CARDS_LIST_ID:
             return "new"
-        case "62c991d6b4fec53835cd8d62":
+        case settings.NEW_CARDS_LIST_ID:
             return "open"
-        case "62ed2c7f187ade7138779186":
+        case settings.PENDING_LIST_ID:
             return "pending"
-        case "62ed2c846ab25f5f84a20ae9":
+        case settings.HOLD_LIST_ID:
             return "hold"
-        case "62ed2ce97ac1e65ed9a9d114":
+        case settings.SOLVED_LIST_ID:
             return "solved"
         case _:
             return None
